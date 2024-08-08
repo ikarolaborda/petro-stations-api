@@ -1,0 +1,42 @@
+services:
+  postgres:
+    container_name: petrol-postgres
+    image: postgres:13
+    environment:
+      POSTGRES_USER: ${DATABASE_USER:-user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-password}
+      POSTGRES_DB: petrol_stations
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+
+  app:
+    container_name: petrol-app
+    build:
+        context: .
+        dockerfile: ./docker/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_HOST: ${DATABASE_HOST:-postgres}
+      DATABASE_PORT: ${DATABASE_PORT:-5432}
+      DATABASE_USER: ${DATABASE_USER:-user}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-password}
+      DATABASE_NAME: ${DATABASE_NAME:-petrol_stations}
+    depends_on:
+      - postgres
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: >
+      sh -c "
+      ./wait-for-it.sh ${DATABASE_HOST} ${DATABASE_PORT} -- 
+      npx typeorm migration:run -d dist/data-source.js &&
+      node dist/seeds/seed.js &&
+      node dist/main
+      "
+
+volumes:
+  postgres_data:
